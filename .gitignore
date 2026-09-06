@@ -1,0 +1,14 @@
+# node
+node_modules/
+web/dist/
+# python
+__pycache__/
+.pytest_cache/
+*.pyc
+# c++
+native/build/
+# rust
+analytics/target/
+# local config
+.env
+*.log
