@@ -1,0 +1,22 @@
+# Runs on the API EC2 host. Caddy terminates TLS for API_DOMAIN and forwards to the API.
+services:
+  api:
+    image: ${API_IMAGE:-ghcr.io/aidenhaidar/sol-analyzer-api:latest}
+    restart: unless-stopped
+    environment:
+      SOLANATRACKER_API_KEY: ${SOLANATRACKER_API_KEY:-}
+      SOLANA_RPC_URL: ${SOLANA_RPC_URL:-http://rpc.internal:8899}
+      SOL_PRICE_USD: ${SOL_PRICE_USD:-150}
+      API_SHARED_SECRET: ${API_SHARED_SECRET:?set API_SHARED_SECRET}
+    expose: ["8787"]
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports: ["80:80", "443:443"]
+    environment:
+      API_DOMAIN: ${API_DOMAIN:?set API_DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+volumes:
+  caddy_data:

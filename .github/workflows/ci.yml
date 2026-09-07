@@ -1,0 +1,32 @@
+name: CI
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm, cache-dependency-path: web/package-lock.json }
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12", cache: pip }
+      - uses: dtolnay/rust-toolchain@stable
+        with: { targets: wasm32-unknown-unknown }
+      - name: Install deps
+        run: |
+          pip install -r api/requirements.txt
+          cd web && npm ci
+      - name: C++
+        run: |
+          cmake -S native -B native/build -DCMAKE_BUILD_TYPE=Release
+          cmake --build native/build
+          ./native/build/solagg_test && ./native/build/cascade_test
+      - name: Rust
+        run: cd analytics && cargo test --release
+      - name: Python
+        run: python -m pytest api/tests -q
+      - name: TypeScript
+        run: cd web && npm run typecheck && npx vitest run && npm run build

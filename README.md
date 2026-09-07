@@ -51,6 +51,12 @@ make serve              # API serves the built client on :8787
 
 Prerequisites: Node 20+, Python 3.11+, a C++17 compiler with CMake, Rust stable.
 
+## Deploying
+
+The web client runs on **Cloudflare Workers**; the API and a **Solana RPC node** run on
+**AWS** (Terraform in `infra/aws`, container in `Dockerfile`). See
+[docs/deployment.md](docs/deployment.md).
+
 ## Using it
 
 * Search by name/symbol or paste a mint and press Enter.

@@ -62,3 +62,11 @@ def test_native_fallback_matches_native():
 
     assert native.pearson([1, 2, 3], [2, 4, 6]) == pytest.approx(1.0)
     assert math.isnan(native.pearson([1, 1, 1], [1, 2, 3]))
+
+
+def test_shared_secret_gate(monkeypatch):
+    from api import main as m
+    monkeypatch.setattr(m, "_SHARED_SECRET", "s3cret")
+    assert client.get("/api/status").status_code == 403
+    assert client.get("/api/status", headers={"x-api-secret": "s3cret"}).status_code == 200
+    assert client.get("/api/health").status_code == 200

@@ -1,0 +1,22 @@
+# Cloudflare Worker: serves the built client from web/dist and proxies /api/* to the
+# API running on AWS next to the Solana RPC node.
+name = "sol-analyzer"
+main = "worker/index.ts"
+compatibility_date = "2025-06-01"
+
+[assets]
+directory = "./dist"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+# Let the Worker handle /api before the asset handler looks for a file.
+run_worker_first = ["/api/*"]
+
+[vars]
+# Public origin of the API on AWS (Caddy terminates TLS there).
+API_ORIGIN = "https://api.example.com"
+
+# Secrets (set with `wrangler secret put API_SHARED_SECRET`):
+#   API_SHARED_SECRET  must match API_SHARED_SECRET on the API host
+
+[observability]
+enabled = true

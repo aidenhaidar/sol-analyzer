@@ -1,0 +1,7 @@
+web/node_modules
+web/dist
+analytics/target
+native/build
+api/ml/models
+.git
+docs

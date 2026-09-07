@@ -13,3 +13,6 @@ analytics/target/
 .env
 *.log
 api/ml/models/
+# terraform
+.terraform/
+*.tfstate*

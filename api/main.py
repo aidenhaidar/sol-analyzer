@@ -37,6 +37,24 @@ def build_provider() -> DataProvider:
 app = FastAPI(title="sol-analyzer", version="0.1.0")
 provider: DataProvider = build_provider()
 
+# When deployed behind the Cloudflare Worker, only requests carrying the shared
+# secret are served, so the API host is not a public data endpoint.
+_SHARED_SECRET = (os.environ.get("API_SHARED_SECRET") or "").strip()
+
+
+@app.middleware("http")
+async def require_shared_secret(request, call_next):
+    if _SHARED_SECRET and request.url.path.startswith("/api/") and request.url.path != "/api/health":
+        if request.headers.get("x-api-secret") != _SHARED_SECRET:
+            from fastapi.responses import JSONResponse
+            return JSONResponse({"detail": "forbidden"}, status_code=403)
+    return await call_next(request)
+
+
+@app.get("/api/health", include_in_schema=False)
+async def health() -> dict:
+    return {"ok": True, "provider": provider.name, "native": native.backend()}
+
 
 def _mint(raw: str) -> str:
     if not MINT_RE.match(raw) and not raw.startswith("Demo"):
