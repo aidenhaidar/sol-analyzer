@@ -79,3 +79,4 @@ class Status(BaseModel):
     provider: Source
     demo: bool
     native: str
+    live: bool = False

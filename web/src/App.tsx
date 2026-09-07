@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Chart, type HoverState, type Layout, type MetricData } from './components/Chart';
 import { MetricPicker } from './components/MetricPicker';
+import { LiveStrip } from './components/LiveStrip';
 import { RiskPanel } from './components/RiskPanel';
 import { StatsBar, type MetricStat } from './components/StatsBar';
 import { TokenSearch } from './components/TokenSearch';
 import { api, type Status } from './lib/api';
 import { alignSeries, loadAnalytics, type Analytics } from './lib/analytics';
+import { useLiveStream } from './lib/useLiveStream';
 import { INTERVALS, type Candle, type CandleMode, type Interval, type MetricKey, type SearchResult, type TokenInfo } from './types';
 
 const DEFAULT_MINT = 'DemoBONK1111111111111111111111111111111111111';
@@ -35,6 +37,7 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
   const reqId = useRef(0);
+  const live = useLiveStream(mint);
 
   useEffect(() => { api.status().then(setStatus).catch(() => setStatus(null)); }, []);
   useEffect(() => { loadAnalytics().then(setAnalytics); }, []);
@@ -72,6 +75,22 @@ export default function App() {
     return () => window.clearInterval(t);
   }, [load]);
 
+  // Move the holders overlay's last bucket by the live change since the stream snapshot.
+  // Using the delta (not the absolute live count) keeps the series continuous even when
+  // the history provider and the stream sample holders differently.
+  const liveMetrics = useMemo(() => {
+    const h = live.latest?.holders;
+    const base = live.snapshot?.holders;
+    if (h === undefined || base === undefined || candles.length === 0) return metrics;
+    const lastTime = candles[candles.length - 1].time;
+    return metrics.map((m) => {
+      if (m.key !== 'holders' || m.points.length === 0) return m;
+      const last = m.points[m.points.length - 1];
+      const pts = m.points.filter((p) => p.time < lastTime);
+      return { ...m, points: [...pts, { time: lastTime, value: last.value + (h - base) }] };
+    });
+  }, [metrics, candles, live.latest?.holders, live.snapshot?.holders]);
+
   const stats: MetricStat[] = useMemo(() => {
     if (!analytics || candles.length < 3) return [];
     return metrics.map((m) => {
@@ -106,6 +125,7 @@ export default function App() {
       </header>
 
       <StatsBar token={token} mode={mode} hover={hover} stats={stats} analyticsBackend={analytics?.backend ?? 'js'} />
+      <LiveStrip live={live} />
 
       <div className="toolbar">
         <div className="seg">
@@ -130,7 +150,7 @@ export default function App() {
       <main className="chart-wrap">
         {error && <div className="error">{error}</div>}
         {loading && candles.length === 0 && <div className="loading">Loading…</div>}
-        <Chart candles={candles} mode={mode} metrics={metrics} layout={layout} showVolume={showVolume} onHover={setHover} />
+        <Chart candles={candles} mode={mode} metrics={liveMetrics} layout={layout} showVolume={showVolume} onHover={setHover} />
       </main>
 
       <RiskPanel mint={mint} />

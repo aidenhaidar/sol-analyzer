@@ -24,8 +24,12 @@ jobs:
           cmake -S native -B native/build -DCMAKE_BUILD_TYPE=Release
           cmake --build native/build
           ./native/build/solagg_test && ./native/build/cascade_test
+      - uses: arduino/setup-protoc@v3
+        with: { repo-token: "${{ secrets.GITHUB_TOKEN }}" }
       - name: Rust
-        run: cd analytics && cargo test --release
+        run: |
+          cd analytics && cargo test --release
+          cd ../stream && cargo test --release
       - name: Python
         run: python -m pytest api/tests -q
       - name: TypeScript

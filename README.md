@@ -16,6 +16,7 @@ correlation and lead/lag read-out for each.
 | Analytics | Rust → WebAssembly | `analytics/` | Pearson, cross-correlation lead/lag scan, rolling correlation, run in the browser |
 | API | Python / FastAPI | `api/` | Token search, candles, metric series; caching; pluggable data providers |
 | Aggregation + simulation | C++ | `native/` | Resamples candles, buckets raw trade feeds into per-candle metrics, and runs the Monte Carlo liquidity cascade; loaded by the API via `ctypes` |
+| Live stream | Rust | `stream/` | Geyser gRPC consumer keeping per-token holder state, one WebSocket delta per slot |
 | Predictive engine | Python | `api/ml/` | RPC/mock holder collection, feature engineering, Random Forest / XGBoost churn classifier, risk tiers |
 
 Both native pieces have fallbacks: the API uses a pure-Python path if
@@ -67,6 +68,16 @@ The web client runs on **Cloudflare Workers**; the API and a **Solana RPC node**
   and the lag at which |r| peaks, phrased as "holders trail price by N bars" or
   "leads". The URL hash encodes token and metrics for sharing.
 
+## Live holder stream
+
+A strip above the chart shows holder count, buy/sell imbalance, pool price and the
+largest balance changes updated every slot (~400 ms) from a Geyser subscription, and
+the holders overlay's last bucket moves with it. See
+[docs/live-stream.md](docs/live-stream.md). Without a Geyser endpoint the service
+runs a simulated feed.
+
+![live](docs/live.png)
+
 ## Predictive engine
 
 Below the chart, a holder-risk panel scores the token's holders with a churn
@@ -114,7 +125,10 @@ analytics/src/lib.rs             Rust analytics + unit tests
 api/main.py                      FastAPI routes
 api/native.py                    ctypes bridge + Python fallback
 api/providers/                   mock, solanatracker, dexscreener
-api/ml/                          raw collectors, features, train, engine, routes
+api/ml/                          raw collectors, features, train, engine, routes, live bridge
+stream/src/geyser.rs             Yellowstone subscription + SPL account / trade decoding
+stream/src/state.rs              per-token holder state and slot deltas
+web/src/components/LiveStrip.tsx live holders / imbalance strip
 native/aggregator.cpp            C++ resampling / trade bucketing
 native/cascade.cpp               C++ Monte Carlo liquidity cascade
 web/src/components/RiskPanel.tsx holder-risk panel + cascade sliders

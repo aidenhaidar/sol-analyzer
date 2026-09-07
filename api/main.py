@@ -72,7 +72,8 @@ def _range(interval: str, start: Optional[int], end: Optional[int]) -> tuple[int
 
 @app.get("/api/status", response_model=Status)
 async def status() -> Status:
-    return Status(provider=provider.name, demo=provider.name == "mock", native=native.backend())
+    return Status(provider=provider.name, demo=provider.name == "mock", native=native.backend(),
+                  live=bool((os.environ.get("STREAM_ORIGIN") or "").strip()))
 
 
 @app.get("/api/search", response_model=list[SearchResult])

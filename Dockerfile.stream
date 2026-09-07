@@ -1,0 +1,13 @@
+# sol-stream: Geyser consumer + WebSocket fan-out (Rust).
+FROM rust:1-bookworm AS build
+RUN apt-get update && apt-get install -y --no-install-recommends protobuf-compiler && rm -rf /var/lib/apt/lists/*
+WORKDIR /src
+COPY stream /src/stream
+RUN cd stream && cargo build --release && cargo test --release
+
+FROM debian:bookworm-slim
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl && rm -rf /var/lib/apt/lists/*
+COPY --from=build /src/stream/target/release/sol-stream /usr/local/bin/sol-stream
+EXPOSE 8790
+HEALTHCHECK CMD curl -fs http://127.0.0.1:8790/health || exit 1
+ENTRYPOINT ["sol-stream"]

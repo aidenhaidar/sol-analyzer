@@ -166,3 +166,41 @@ export const TIER_COLORS: Record<RiskTier, string> = {
   elevated: '#fb923c',
   critical: '#ef4444',
 };
+
+// ------------------------------------------------------------------ live stream
+
+export interface HolderChange {
+  owner: string;
+  before: number;
+  after: number;
+}
+
+export interface SlotDelta {
+  mint: string;
+  slot: number;
+  ts_ms: number;
+  holders: number;
+  holder_delta: number;
+  new_holders: number;
+  exited_holders: number;
+  buys: number;
+  sells: number;
+  buy_amount: number;
+  sell_amount: number;
+  buy_lamports: number;
+  sell_lamports: number;
+  traders: number;
+  price_lamports_per_token: number | null;
+  imbalance: number;
+  top_changes: HolderChange[];
+}
+
+export interface LiveSnapshot {
+  mint: string;
+  slot: number;
+  holders: number;
+  total_held: number;
+  price_lamports_per_token: number | null;
+  top_holders: [string, number][];
+  history: SlotDelta[];
+}

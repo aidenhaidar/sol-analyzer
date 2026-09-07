@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "concurrently -k -n api,web -c blue,green \"cd .. && python3 -m uvicorn api.main:app --reload --port 8787\" \"vite\"",
+    "dev": "concurrently -k -n stream,api,web -c magenta,blue,green \"cd .. && STREAM_SIM=1 ./stream/target/release/sol-stream\" \"cd .. && STREAM_ORIGIN=http://localhost:8790 python3 -m uvicorn api.main:app --reload --port 8787\" \"vite\"",
     "dev:client": "vite",
     "build": "tsc -p tsconfig.json && vite build",
     "preview": "vite preview",

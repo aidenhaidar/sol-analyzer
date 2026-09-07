@@ -8,13 +8,26 @@ services:
       SOLANA_RPC_URL: ${SOLANA_RPC_URL:-http://rpc.internal:8899}
       SOL_PRICE_USD: ${SOL_PRICE_USD:-150}
       API_SHARED_SECRET: ${API_SHARED_SECRET:?set API_SHARED_SECRET}
+      STREAM_ORIGIN: http://stream:8790
     expose: ["8787"]
+  stream:
+    image: ${STREAM_IMAGE:-ghcr.io/aidenhaidar/sol-analyzer-stream:latest}
+    restart: unless-stopped
+    environment:
+      # Yellowstone gRPC endpoint (Helius LaserStream, Triton, or your own node's Geyser plugin).
+      # Leave GEYSER_ENDPOINT empty to run the simulated feed.
+      GEYSER_ENDPOINT: ${GEYSER_ENDPOINT:-}
+      GEYSER_X_TOKEN: ${GEYSER_X_TOKEN:-}
+      STREAM_WATCH: ${STREAM_WATCH:-}
+      RUST_LOG: info
+    expose: ["8790"]
   caddy:
     image: caddy:2
     restart: unless-stopped
     ports: ["80:80", "443:443"]
     environment:
       API_DOMAIN: ${API_DOMAIN:?set API_DOMAIN}
+      API_SHARED_SECRET: ${API_SHARED_SECRET:?set API_SHARED_SECRET}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data

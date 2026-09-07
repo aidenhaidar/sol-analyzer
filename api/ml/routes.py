@@ -9,20 +9,36 @@ from fastapi import APIRouter, HTTPException, Query
 
 from ..cache import cached
 from .engine import PredictiveEngine, TokenRisk
+from .live import LiveCollector, StreamClient
 from .raw import Collector, MockCollector, RpcCollector
 
 router = APIRouter()
 engine = PredictiveEngine()
+stream = StreamClient()
 TOP_HOLDERS_IN_RESPONSE = 60
+_live_collectors: dict[str, LiveCollector] = {}
 
 
-def make_collector(token_price: float, supply: Optional[float]) -> Collector:
+def base_collector(token_price: float, supply: Optional[float]) -> Collector:
     rpc = (os.environ.get("SOLANA_RPC_URL") or "").strip()
     return RpcCollector(rpc, token_price) if rpc else MockCollector(token_price, supply)
 
 
+def make_collector(mint: str, token_price: float, supply: Optional[float]) -> Collector:
+    base = base_collector(token_price, supply)
+    if not stream.enabled:
+        return base
+    lc = _live_collectors.get(mint)
+    if lc is None:
+        lc = _live_collectors[mint] = LiveCollector(stream, base, token_price=token_price)
+    lc.base, lc.token_price = base, token_price
+    return lc
+
+
 async def assess(mint: str, token_price: float, supply: Optional[float], limit: int) -> TokenRisk:
-    return await cached(f"risk:{mint}:{limit}", 60, lambda: engine.assess(mint, make_collector(token_price, supply), limit))
+    # Live mode rescoring is cheap (balances are already in memory), so cache briefly.
+    ttl = 2 if stream.enabled else 60
+    return await cached(f"risk:{mint}:{limit}", ttl, lambda: engine.assess(mint, make_collector(mint, token_price, supply), limit))
 
 
 def _supply(info) -> Optional[float]:
@@ -36,10 +52,23 @@ def risk_payload(r: TokenRisk) -> dict:
     d["sampled_holders"] = len(r.holders)
     d["holders"] = d["holders"][:TOP_HOLDERS_IN_RESPONSE]
     d["collector"] = "rpc" if os.environ.get("SOLANA_RPC_URL") else "mock"
+    d["live"] = stream.enabled
     return d
 
 
 def register(app, provider, mint_parser) -> None:
+    @app.get("/api/live/{mint}")
+    async def live(mint: str, top: int = Query(25, ge=1, le=500)) -> dict:
+        """Snapshot of the live holder state (the WebSocket at /ws/{mint} carries deltas)."""
+        mint = mint_parser(mint)
+        if not stream.enabled:
+            raise HTTPException(503, "live stream not configured (STREAM_ORIGIN)")
+        await stream.watch(mint)
+        snap = await stream.snapshot(mint, top)
+        if snap is None:
+            raise HTTPException(404, "not watched")
+        return snap
+
     @app.get("/api/risk/{mint}")
     async def risk(mint: str, limit: int = Query(300, ge=10, le=2000)) -> dict:
         mint = mint_parser(mint)

@@ -1,4 +1,11 @@
 {$API_DOMAIN} {
     encode gzip
+    # Live holder stream (WebSocket) goes to sol-stream; only the Worker knows the secret.
+    @ws path /ws/*
+    handle @ws {
+        @unauthorized not header X-Api-Secret {$API_SHARED_SECRET}
+        respond @unauthorized 403
+        reverse_proxy stream:8790
+    }
     reverse_proxy api:8787
 }

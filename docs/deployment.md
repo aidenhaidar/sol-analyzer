@@ -1,9 +1,10 @@
 # Deployment
 
 ```
-browser ──► Cloudflare Worker (web/)                 ──► API host on AWS (Docker: FastAPI + C++ lib, Caddy TLS)
-             static assets + /api proxy + edge cache       │  x-api-secret required
-                                                           └─► Solana RPC node on AWS (Agave, private RPC :8899)
+browser ──► Cloudflare Worker (web/)                 ──► API host on AWS (Docker: Caddy TLS, FastAPI + C++ lib, sol-stream)
+             static assets + /api proxy + edge cache       │  x-api-secret required; /ws/* -> sol-stream (WebSocket)
+             /ws/* WebSocket passthrough                    ├─► Geyser gRPC (Helius LaserStream / Triton / own node plugin)
+                                                           └─► Solana RPC node on AWS (optional; Agave, private RPC :8899)
 ```
 
 The Python/C++ API cannot run on Workers (native library, ML model), so it lives on AWS
@@ -51,7 +52,9 @@ workflow and published to `ghcr.io/<owner>/sol-analyzer-api`. To update:
 ssh ubuntu@<api_public_ip> 'cd /opt/sol-analyzer && sudo docker compose pull && sudo docker compose up -d'
 ```
 
-Add `SOLANATRACKER_API_KEY` to `/opt/sol-analyzer/.env` for live candles and holder history.
+Add `SOLANATRACKER_API_KEY` to `/opt/sol-analyzer/.env` for live candles and holder history,
+and `GEYSER_ENDPOINT` / `GEYSER_X_TOKEN` for the real-time holder stream (empty runs the
+simulated feed). The Deploy workflow also publishes `ghcr.io/<owner>/sol-analyzer-stream`.
 
 ## 2. Cloudflare Workers (`web/`)
 

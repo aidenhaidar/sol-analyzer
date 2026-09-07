@@ -20,11 +20,21 @@ const CACHE_TTL: Array<[RegExp, number]> = [
   [/^\/api\/metric\//, 5],
   [/^\/api\/risk\//, 60],
   [/^\/api\/cascade\//, 30],
+  [/^\/api\/live\//, 0],
 ];
 
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
+    // Live holder stream: pass the WebSocket upgrade straight through to the origin,
+    // where Caddy routes /ws/* to the sol-stream service.
+    if (url.pathname.startsWith('/ws/')) {
+      if (request.headers.get('upgrade')?.toLowerCase() !== 'websocket') return new Response('expected websocket', { status: 426 });
+      const upstream = new URL(url.pathname + url.search, env.API_ORIGIN);
+      const headers = new Headers(request.headers);
+      if (env.API_SHARED_SECRET) headers.set('x-api-secret', env.API_SHARED_SECRET);
+      return fetch(upstream, { headers, method: 'GET' });
+    }
     if (!url.pathname.startsWith('/api/')) return env.ASSETS.fetch(request);
     if (request.method !== 'GET') return new Response('method not allowed', { status: 405 });
 
