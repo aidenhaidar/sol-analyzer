@@ -12,3 +12,4 @@ analytics/target/
 # local config
 .env
 *.log
+api/ml/models/

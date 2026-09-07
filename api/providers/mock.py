@@ -73,9 +73,9 @@ def _generate(mint: str) -> list[Minute]:
     momentum = 0.0
     for i in range(MINUTES):
         if rand() < 0.004:
-            momentum += (rand() - 0.35) * 0.02
-        momentum *= 0.97
-        ret = momentum + (rand() - 0.5) * 0.012
+            momentum += (rand() - 0.4) * 0.004
+        momentum *= 0.95
+        ret = momentum + (rand() - 0.5) * 0.008
         o = price
         c = max(o * (1 + ret), 1e-9)
         wick = abs(ret) * (0.5 + rand())
@@ -91,7 +91,8 @@ def _generate(mint: str) -> list[Minute]:
         traders = max(1, round((buys + sells) * (0.5 + rand() * 0.4)))
 
         holders = max(50, holders + round(buys * 0.35 - sells * 0.25 + (rand() - 0.5) * 3))
-        liquidity = max(1000.0, liquidity * (1 + ret * 0.4) + (buy_volume - sell_volume) * 0.05)
+        # Pool value tracks market cap (memecoin pools hold a few % of supply) plus net flow.
+        liquidity = max(1000.0, 0.9 * liquidity + 0.1 * (c * SUPPLY * 0.06) + (buy_volume - sell_volume) * 0.05)
         out.append(Minute(start + i * 60, o, h, l, c, buys, sells, buy_volume, sell_volume, traders, holders, liquidity))
     return out
 

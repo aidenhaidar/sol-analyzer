@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Chart, type HoverState, type Layout, type MetricData } from './components/Chart';
 import { MetricPicker } from './components/MetricPicker';
+import { RiskPanel } from './components/RiskPanel';
 import { StatsBar, type MetricStat } from './components/StatsBar';
 import { TokenSearch } from './components/TokenSearch';
 import { api, type Status } from './lib/api';
@@ -131,6 +132,8 @@ export default function App() {
         {loading && candles.length === 0 && <div className="loading">Loading…</div>}
         <Chart candles={candles} mode={mode} metrics={metrics} layout={layout} showVolume={showVolume} onHover={setHover} />
       </main>
+
+      <RiskPanel mint={mint} />
 
       <footer className="foot">
         <span>Candles: {mode === 'marketCap' ? 'market cap' : 'price'} · {interval} · {candles.length} bars</span>

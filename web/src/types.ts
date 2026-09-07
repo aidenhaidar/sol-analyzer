@@ -112,3 +112,57 @@ export interface MetricResponse {
   /** Set when the provider cannot supply the metric and it was approximated. */
   approximated?: boolean;
 }
+
+// ------------------------------------------------------------ predictive engine
+
+export type RiskTier = 'stable' | 'watch' | 'elevated' | 'critical';
+
+export interface HolderRisk {
+  wallet: string;
+  churn_probability: number;
+  z_score: number;
+  tier: RiskTier;
+  token_balance: number;
+  features: Record<string, number>;
+  archetype: string | null;
+}
+
+export interface TokenRisk {
+  mint: string;
+  model: string;
+  collector: 'rpc' | 'mock';
+  holders: HolderRisk[];
+  sampled_holders: number;
+  mean_probability: number;
+  std_probability: number;
+  supply_at_risk_pct: number;
+  tier_counts: Record<RiskTier, number>;
+  risk_score: number;
+  feature_importance: Record<string, number>;
+  generated_at: number;
+}
+
+export interface CascadeReport {
+  mint: string;
+  quote_shock_pct: number;
+  drained_mean: number;
+  drained_p50: number;
+  drained_p90: number;
+  drained_p99: number;
+  price_impact_mean: number;
+  sellers_mean: number;
+  rounds_mean: number;
+  histogram: number[];
+  n_sims: number;
+  absorption: number;
+  narrative: string;
+  sampled_holders: number;
+  sol_price: number;
+}
+
+export const TIER_COLORS: Record<RiskTier, string> = {
+  stable: '#22c55e',
+  watch: '#f7b731',
+  elevated: '#fb923c',
+  critical: '#ef4444',
+};

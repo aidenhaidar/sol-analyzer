@@ -15,7 +15,8 @@ correlation and lead/lag read-out for each.
 | Web client | TypeScript / React | `web/` | Vite app, `lightweight-charts` v5 multi-pane chart, metric picker, hover legend |
 | Analytics | Rust → WebAssembly | `analytics/` | Pearson, cross-correlation lead/lag scan, rolling correlation, run in the browser |
 | API | Python / FastAPI | `api/` | Token search, candles, metric series; caching; pluggable data providers |
-| Aggregation | C++ | `native/` | Resamples candles and buckets raw trade feeds (hundreds of thousands of rows) into per-candle metrics; loaded by the API via `ctypes` |
+| Aggregation + simulation | C++ | `native/` | Resamples candles, buckets raw trade feeds into per-candle metrics, and runs the Monte Carlo liquidity cascade; loaded by the API via `ctypes` |
+| Predictive engine | Python | `api/ml/` | RPC/mock holder collection, feature engineering, Random Forest / XGBoost churn classifier, risk tiers |
 
 Both native pieces have fallbacks: the API uses a pure-Python path if
 `libsolagg.so` is not built, and the client uses a TypeScript implementation if
@@ -43,7 +44,7 @@ make dev        # API on :8787 and Vite on :5173 (proxies /api)
 For live data:
 
 ```bash
-cp .env.example .env    # add SOLANATRACKER_API_KEY
+cp .env.example .env    # add SOLANATRACKER_API_KEY and optionally SOLANA_RPC_URL
 set -a; . ./.env; set +a
 make serve              # API serves the built client on :8787
 ```
@@ -60,6 +61,27 @@ Prerequisites: Node 20+, Python 3.11+, a C++17 compiler with CMake, Rust stable.
   and the lag at which |r| peaks, phrased as "holders trail price by N bars" or
   "leads". The URL hash encodes token and metrics for sharing.
 
+## Predictive engine
+
+Below the chart, a holder-risk panel scores the token's holders with a churn
+classifier and stress-tests the pool with a Monte Carlo cascade.
+
+![risk](docs/risk.png)
+
+* **Raw data** per holder wallet straight from a Solana RPC node (`SOLANA_RPC_URL`),
+  or a synthetic archetype population offline: balances, transfer timestamps,
+  first activity slot, counterparties, tokens held, trades.
+* **Features**: wallet age, ecosystem footprint, average hold time, tx/day, token
+  velocity, concentration %, paper-hand ratio, sentiment alignment.
+* **Classifier**: Random Forest vs XGBoost with cross-validation; `make train`
+  refits and saves the better model. Holders are tiered by standard deviations
+  from the population mean.
+* **Cascade**: the C++ kernel simulates a SOL shock through a constant-product
+  pool, holders selling as their panic thresholds trip, and dip-buyer absorption,
+  reporting pool drainage percentiles and a narrative.
+
+See [docs/predictive-engine.md](docs/predictive-engine.md) for formulas and assumptions.
+
 ## API
 
 ```
@@ -68,6 +90,8 @@ GET /api/search?q=
 GET /api/token/{mint}
 GET /api/chart/{mint}?interval=5m&mode=price|marketCap&from=&to=
 GET /api/metric/{mint}?metric=holders&interval=5m&from=&to=
+GET /api/risk/{mint}?limit=300
+GET /api/cascade/{mint}?shock=-15&absorption=0.5&sims=4000
 ```
 
 Metrics: `holders volume buyVolume sellVolume txns buys sells traders liquidity`.
@@ -84,5 +108,8 @@ analytics/src/lib.rs             Rust analytics + unit tests
 api/main.py                      FastAPI routes
 api/native.py                    ctypes bridge + Python fallback
 api/providers/                   mock, solanatracker, dexscreener
+api/ml/                          raw collectors, features, train, engine, routes
 native/aggregator.cpp            C++ resampling / trade bucketing
+native/cascade.cpp               C++ Monte Carlo liquidity cascade
+web/src/components/RiskPanel.tsx holder-risk panel + cascade sliders
 ```

@@ -1,4 +1,4 @@
-import type { CandleMode, ChartResponse, Interval, MetricKey, MetricResponse, SearchResult, TokenInfo } from '../types';
+import type { CandleMode, CascadeReport, ChartResponse, Interval, MetricKey, MetricResponse, SearchResult, TokenInfo, TokenRisk } from '../types';
 
 export interface Status {
   provider: TokenInfo['source'];
@@ -26,4 +26,7 @@ export const api = {
     get<ChartResponse>(`/api/chart/${mint}`, { interval, mode, from, to }),
   metric: (mint: string, metric: MetricKey, interval: Interval, from?: number, to?: number) =>
     get<MetricResponse>(`/api/metric/${mint}`, { metric, interval, from, to }),
+  risk: (mint: string, limit = 300) => get<TokenRisk>(`/api/risk/${mint}`, { limit }),
+  cascade: (mint: string, shock: number, absorption: number, sims = 4000, limit = 300) =>
+    get<CascadeReport>(`/api/cascade/${mint}`, { shock, absorption, sims, limit }),
 };

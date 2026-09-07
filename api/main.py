@@ -23,6 +23,7 @@ from .providers import dexscreener
 from .providers.base import DataProvider
 from .providers.mock import MockProvider
 from .providers.solanatracker import SolanaTrackerProvider
+from .ml.routes import register as register_ml
 
 MINT_RE = re.compile(r"^[1-9A-HJ-NP-Za-km-z]{32,44}$")
 DEFAULT_BARS = 300
@@ -102,6 +103,8 @@ async def metric(mint: str, metric: MetricKey, interval: Interval = "5m",
                           lambda: provider.metric(mint, metric, interval, s, e))
     return MetricResponse(mint=mint, interval=interval, metric=metric, source=provider.name, **series.model_dump())
 
+
+register_ml(app, provider, _mint)
 
 # Serve the built web client in production (web/dist).
 _dist = Path(__file__).resolve().parent.parent / "web" / "dist"

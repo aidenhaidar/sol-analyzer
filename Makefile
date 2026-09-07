@@ -2,10 +2,11 @@
 #   make setup   install JS + Python deps, wasm target, wasm-bindgen CLI
 #   make build   build C++ lib, Rust->wasm, and the web bundle
 #   make test    run C++, Rust, Python and TypeScript tests
+#   make train   refit the holder churn classifier
 #   make dev     run API (8787) + Vite dev server (5173) together
 #   make serve   run the API serving the built web bundle (production)
 
-.PHONY: setup native wasm web build test dev serve clean
+.PHONY: setup native wasm web build test train dev serve clean
 
 setup:
 	cd web && npm install
@@ -27,9 +28,13 @@ build: native web
 
 test: native
 	./native/build/solagg_test
+	./native/build/cascade_test
 	cd analytics && cargo test --release
 	python3 -m pytest api/tests -q
 	cd web && npx tsc --noEmit -p tsconfig.json && npx vitest run
+
+train:
+	python3 -m api.ml.train
 
 dev: native
 	cd web && npm run dev

@@ -179,3 +179,90 @@ def pearson(a: Sequence[float], b: Sequence[float]) -> float:
     va = sum((x - ma) ** 2 for x in a[:n])
     vb = sum((y - mb) ** 2 for y in b[:n])
     return math.nan if va == 0 or vb == 0 else cov / math.sqrt(va * vb)
+
+
+# ---------------------------------------------------------------------------- cascade
+
+class _CascadeParams(ctypes.Structure):
+    _fields_ = [("pool_token_reserve", ctypes.c_double), ("pool_quote_reserve", ctypes.c_double),
+                ("quote_shock_pct", ctypes.c_double), ("n_sims", ctypes.c_int32), ("max_rounds", ctypes.c_int32),
+                ("absorption", ctypes.c_double), ("seed", ctypes.c_uint64)]
+
+
+class _CascadeResult(ctypes.Structure):
+    _fields_ = [(k, ctypes.c_double) for k in ("drained_mean", "drained_p50", "drained_p90", "drained_p99",
+                                               "price_impact_mean", "sellers_mean", "rounds_mean")]
+
+
+if _lib is not None and hasattr(_lib, "sa_cascade_simulate"):
+    _lib.sa_cascade_simulate.restype = ctypes.c_int32
+    _lib.sa_cascade_simulate.argtypes = [F64P, F64P, F64P, ctypes.c_int64, ctypes.POINTER(_CascadeParams),
+                                         ctypes.POINTER(_CascadeResult), F64P, ctypes.c_int32]
+
+
+def cascade_simulate(balance: Sequence[float], churn: Sequence[float], threshold: Sequence[float],
+                     pool_token: float, pool_quote: float, shock_pct: float, n_sims: int = 4000,
+                     max_rounds: int = 8, seed: int = 42, bins: int = 20, absorption: float = 0.5) -> dict:
+    """Monte Carlo liquidity cascade. Uses the C++ kernel when available.
+
+    `absorption` is the share of each round's outflow that dip buyers put back."""
+    n = len(balance)
+    if _lib is not None and hasattr(_lib, "sa_cascade_simulate"):
+        params = _CascadeParams(pool_token, pool_quote, shock_pct, n_sims, max_rounds, absorption, seed)
+        res = _CascadeResult()
+        hist = (ctypes.c_double * bins)()
+        rc = _lib.sa_cascade_simulate(_f64(balance), _f64(churn), _f64(threshold), n, ctypes.byref(params),
+                                      ctypes.byref(res), hist, bins)
+        if rc != 0:
+            raise ValueError("cascade simulation rejected its inputs")
+        out = {k: getattr(res, k) for k, _ in _CascadeResult._fields_}
+        out["histogram"] = list(hist)
+        return out
+    return _cascade_py(balance, churn, threshold, pool_token, pool_quote, shock_pct, n_sims, max_rounds, seed, bins, absorption)
+
+
+def _cascade_py(balance, churn, threshold, pool_token, pool_quote, shock_pct, n_sims, max_rounds, seed, bins, absorption=0.3) -> dict:
+    import random
+    rng = random.Random(seed)
+    k = pool_token * pool_quote
+    p0 = pool_quote / pool_token
+    shock = shock_pct / 100.0
+    drained, impact, sellers_t, rounds_t = [], 0.0, 0.0, 0.0
+    n = len(balance)
+    for _ in range(n_sims):
+        tok, quote = pool_token, pool_quote
+        sold = [0] * n
+        sellers = rounds = 0
+        for _r in range(max_rounds):
+            quote_before = quote
+            drawdown = 1.0 - (1.0 + shock) * ((quote / tok) / p0)
+            any_sold = False
+            for i in range(n):
+                if sold[i]:
+                    continue
+                if drawdown < max(0.0, threshold[i] + rng.gauss(0, 0.015)):
+                    continue
+                if rng.random() > churn[i]:
+                    sold[i] = 2
+                    continue
+                tok += balance[i] * (0.4 + 0.6 * churn[i])
+                quote = k / tok
+                sold[i] = 1
+                sellers += 1
+                any_sold = True
+            rounds += 1
+            if not any_sold:
+                break
+            quote += (quote_before - quote) * max(0.0, min(1.0, absorption))
+            tok = k / quote
+        drained.append(1.0 - quote / pool_quote)
+        impact += (quote / tok) / p0 - 1.0
+        sellers_t += sellers
+        rounds_t += rounds
+    s = sorted(drained)
+    pct = lambda q: s[min(len(s) - 1, int(q * len(s)))]  # noqa: E731
+    hist = [0.0] * bins
+    for d in drained:
+        hist[min(bins - 1, int(max(d, 0.0) * bins))] += 1.0 / n_sims
+    return {"drained_mean": sum(drained) / n_sims, "drained_p50": pct(0.5), "drained_p90": pct(0.9), "drained_p99": pct(0.99),
+            "price_impact_mean": impact / n_sims, "sellers_mean": sellers_t / n_sims, "rounds_mean": rounds_t / n_sims, "histogram": hist}
